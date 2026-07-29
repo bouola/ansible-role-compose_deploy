@@ -6,10 +6,8 @@ driver:
   name: docker
 
 platforms:
-  # On "${name:-${image:-debian}", the last brace does not miss, it works like that...
-  # The env var should be used when the image variable refers to a full registry path like registry.access.redhat.com/ubi8/ubi
-  - name: bouola_compose_deploy_${name:-${image:-debian}-${tag:-latest}-${scenario:-default}
-    image: ${image:-debian}:${tag:-latest}
+  - name: "bouola-compose-deploy-${os:-ubuntu2204}-${scenario:-default}"
+    image: "${image:-dcagatay/ubuntu-dind}:${tag:-22.04}"
     privileged: true
     pre_build_image: true
     tty: true
@@ -21,6 +19,9 @@ provisioner:
       remote_tmp: /tmp/.ansible/tmp
   env:
     ANSIBLE_FORCE_COLOR: "true"
+    ANSIBLE_LOAD_CALLBACK_PLUGINS: "true"
+    ANSIBLE_CALLBACKS_ENABLED: "ansible.posix.profile_tasks"
+    ANSIBLE_STDOUT_CALLBACK: "ansible.builtin.debug"
   options:
     v: true
 
