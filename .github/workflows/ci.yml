@@ -16,16 +16,12 @@ on:  # yamllint disable-line rule:truthy
       - 'README.md'
       - '.mise.toml'
 
-permissions:
-  contents: write # to be able to publish a GitHub release
-  issues: write # to be able to comment on released issues
-  pull-requests: write # to be able to comment on released pull requests
-  id-token: write # to enable use of OIDC for authentication
-
 jobs:
   setup:
     name: Setup scenarios matrix
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
     outputs:
       scenarios: ${{ steps.matrix.outputs.scenarios }}
     steps:
@@ -41,14 +37,19 @@ jobs:
             fi
           done
 
-          JSON="${JSON%?}"
-          JSON="$JSON]"
+          if [ "$JSON" = "[" ]; then
+            JSON="[]"
+          else
+            JSON="${JSON%?}]"
+          fi
 
           echo "scenarios=$JSON" >> "$GITHUB_OUTPUT"
 
   lint:
     name: Lint
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -74,23 +75,16 @@ jobs:
       - lint
       - setup
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         scenario: ${{ fromJson(needs.setup.outputs.scenarios) }}
         config:
-          - os: "ubuntu2404"
-            image: "geerlingguy/docker-ubuntu2404-ansible"
-            tag: "latest"
           - os: "ubuntu2204"
-            image: "geerlingguy/docker-ubuntu2204-ansible"
-            tag: "latest"
-          - os: "debian12"
-            image: "geerlingguy/docker-debian12-ansible"
-            tag: "latest"
-          - os: "debian13"
-            image: "geerlingguy/docker-debian13-ansible"
-            tag: "latest"
+            image: "dcagatay/ubuntu-dind"
+            tag: "22.04"
 
     steps:
       - name: checkout
@@ -119,36 +113,53 @@ jobs:
     if: github.event_name == 'push' && github.ref != 'refs/heads/main'
     needs: [lint, test]
     runs-on: ubuntu-latest
-    steps: &release_steps
+    permissions:
+      contents: read
+    steps:
       - name: Checkout
         uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4.0.2
+      - name: Run Semantic Release dry run
+        uses: cycjimmy/semantic-release-action@v6
         with:
-          node-version: "lts/*"
-
-      - name: Install dependencies
-        run: npm install -g semantic-release @semantic-release/github @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/changelog @semantic-release/git
-
-      - name: Release
+          dry_run: "true"
+          extra_plugins: |
+            @semantic-release/github
+            @semantic-release/commit-analyzer
+            @semantic-release/release-notes-generator
+            @semantic-release/changelog
+            @semantic-release/git
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            npx semantic-release
-          else
-            npx semantic-release --dry-run
-          fi
 
   release:
     name: Release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [lint, test]
     runs-on: ubuntu-latest
-    steps: *release_steps
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0
+      - name: Run Semantic Release
+        uses: cycjimmy/semantic-release-action@v6
+        with:
+          dry_run: "false"
+          extra_plugins: |
+            @semantic-release/github
+            @semantic-release/commit-analyzer
+            @semantic-release/release-notes-generator
+            @semantic-release/changelog
+            @semantic-release/git
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
     name: Publish Ansible Galaxy
@@ -156,6 +167,11 @@ jobs:
     needs:
       - release
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
     steps:
       - name: publish
         uses: robertdebock/galaxy-action@1.2.1
