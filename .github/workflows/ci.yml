@@ -61,7 +61,7 @@ jobs:
           experimental: true
       - name: install lint dependencies
         working-directory: "${{ github.repository }}"
-        run: mise run setup-dev
+        run: mise run setup:dev
       - name: yamllint
         working-directory: "${{ github.repository }}"
         run: mise exec -- yamllint .
@@ -97,7 +97,7 @@ jobs:
           experimental: true
       - name: install dependencies
         working-directory: "${{ github.repository }}"
-        run: mise run setup-dev
+        run: mise run setup:dev
       - name: Set correct right to docker.
         run: sudo chmod 666 /var/run/docker.sock
       - name: molecule
