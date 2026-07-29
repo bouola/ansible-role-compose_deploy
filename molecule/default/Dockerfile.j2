@@ -1,0 +1,30 @@
+# Molecule managed
+{% if item.registry is defined %}
+FROM {{ item.registry.url }}/{{ item.image }}
+{% else %}
+FROM {{ item.image }}
+{% endif %}
+
+{% if item.env is defined %}
+{% for var, value in item.env.items() %}
+{% if value %}
+ENV {{ var }} {{ value }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      python3 \
+      curl \
+      sudo \
+      bash \
+      ca-certificates \
+      iproute2 \
+      wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN wget -O /usr/bin/systemctl \
+      https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py && \
+    chmod +x /usr/bin/systemctl

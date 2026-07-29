@@ -1,0 +1,17 @@
+---
+- name: "Prepare existing Compose paths"
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: "Create existing bind-mount directory"
+      ansible.builtin.file:
+        path: /app/db
+        state: directory
+        mode: "0700"
+
+    - name: "Create existing Compose project directory"
+      ansible.builtin.file:
+        path: /app/flask
+        state: directory
+        mode: "0700"

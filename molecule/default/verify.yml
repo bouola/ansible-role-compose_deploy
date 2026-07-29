@@ -1,0 +1,64 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    compose_deploy_nginx_server_name: flask.test.local
+    compose_project_path: /app/flask/docker-compose.yml
+    nginx_config_path: /app/flask/nginx/nginx.conf
+    nginx_template_path: /app/flask/nginx/nginx.conf.j2
+    db_volume_path: /app/db
+  tasks:
+    - name: "Check compose project file"
+      ansible.builtin.stat:
+        path: "{{ compose_project_path }}"
+      register: _verify_compose_project
+
+    - name: "Check nginx configuration file"
+      ansible.builtin.stat:
+        path: "{{ nginx_config_path }}"
+      register: _verify_nginx_config
+
+    - name: "Check copied nginx template source is absent"
+      ansible.builtin.stat:
+        path: "{{ nginx_template_path }}"
+      register: _verify_nginx_template
+
+    - name: "Check database volume directory"
+      ansible.builtin.stat:
+        path: "{{ db_volume_path }}"
+      register: _verify_db_volume
+
+    - name: "Read rendered nginx configuration"
+      ansible.builtin.slurp:
+        path: "{{ nginx_config_path }}"
+      register: _verify_nginx_config_content
+
+    - name: "Assert deployed files and directories exist"
+      ansible.builtin.assert:
+        that:
+          - _verify_compose_project.stat.exists
+          - _verify_compose_project.stat.isreg
+          - _verify_nginx_config.stat.exists
+          - _verify_nginx_config.stat.isreg
+          - not _verify_nginx_template.stat.exists
+          - "'server_name ' ~ compose_deploy_nginx_server_name ~ ';' in (_verify_nginx_config_content.content | b64decode)"
+          - _verify_db_volume.stat.exists
+          - _verify_db_volume.stat.isdir
+
+    - name: "Wait for nginx to listen on port 80"
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 80
+        timeout: 60
+
+    - name: "Check the HTTP endpoint"
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ compose_deploy_nginx_server_name }}"
+        status_code: 200
+      register: _verify_http_endpoint
+      retries: 10
+      delay: 3
+      until: _verify_http_endpoint.status == 200
