@@ -1,0 +1,69 @@
+---
+- name: "Collect Compose project subdirectory state"
+  ansible.builtin.stat:
+    path: "{{ _compose_deploy_project_remote_path }}"
+  vars:
+    _compose_deploy_project_relative_path: >-
+      {{ compose_deploy_project_directory.path | regex_replace('^' ~ (_compose_deploy_project_source_dir | regex_escape) ~ '/?', '') }}
+    _compose_deploy_project_remote_path: >-
+      {{ _compose_deploy_project_dest_dir }}/{{ _compose_deploy_project_relative_path }}
+  loop: "{{ _compose_deploy_project_directories.files | sort(attribute='path') }}"
+  loop_control:
+    loop_var: compose_deploy_project_directory
+    label: "{{ _compose_deploy_project_relative_path }}"
+  register: _compose_deploy_project_subdirectories_state
+
+# A conflicting path must fail before the role creates any nested directory.
+- name: "Fail when a Compose project path exists and is not a directory"
+  ansible.builtin.fail:
+    msg: >-
+      Compose project path {{ _compose_deploy_project_remote_path }} exists but is not a directory.
+      Update compose_deploy_projects or remove the conflicting path.
+  vars:
+    _compose_deploy_project_remote_path: >-
+      {{ compose_deploy_project_subdirectory_state.stat.path
+         | default(compose_deploy_project_subdirectory_state.invocation.module_args.path) }}
+  loop: "{{ _compose_deploy_project_subdirectories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_project_subdirectory_state
+    label: "{{ _compose_deploy_project_remote_path }}"
+  when:
+    - compose_deploy_project_subdirectory_state.stat.exists
+    - not compose_deploy_project_subdirectory_state.stat.isdir
+
+# Missing nested directories are required before files and templates can be synchronized.
+- name: "Create missing Compose project subdirectories"
+  ansible.builtin.file:
+    path: "{{ _compose_deploy_project_remote_path }}"
+    state: directory
+    mode: "{{ compose_deploy_project.directory_mode | default('0755') }}"
+  vars:
+    _compose_deploy_project_remote_path: >-
+      {{ compose_deploy_project_subdirectory_state.stat.path
+         | default(compose_deploy_project_subdirectory_state.invocation.module_args.path) }}
+  loop: "{{ _compose_deploy_project_subdirectories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_project_subdirectory_state
+    label: "{{ _compose_deploy_project_remote_path }}"
+  when:
+    - not compose_deploy_project_subdirectory_state.stat.exists
+
+# Existing project subdirectories retain their current permissions by design.
+- name: "Report existing Compose project subdirectories with a different mode"
+  ansible.builtin.debug:
+    msg: >-
+      Compose project directory {{ _compose_deploy_project_remote_path }} already exists with mode
+      {{ compose_deploy_project_subdirectory_state.stat.mode }}. Requested mode is
+      {{ compose_deploy_project.directory_mode | default('0755') }}. Permissions are left unchanged.
+  vars:
+    _compose_deploy_project_remote_path: >-
+      {{ compose_deploy_project_subdirectory_state.stat.path
+         | default(compose_deploy_project_subdirectory_state.invocation.module_args.path) }}
+  loop: "{{ _compose_deploy_project_subdirectories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_project_subdirectory_state
+    label: "{{ _compose_deploy_project_remote_path }}"
+  when:
+    - compose_deploy_project_subdirectory_state.stat.exists
+    - compose_deploy_project_subdirectory_state.stat.isdir
+    - (compose_deploy_project_subdirectory_state.stat.mode | string | int(base=8)) != (compose_deploy_project.directory_mode | default('0755') | string | int(base=8))

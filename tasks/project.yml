@@ -1,0 +1,104 @@
+---
+# Synchronization cannot continue when the controller has no project source.
+- name: "Fail when a Compose project source directory is missing"
+  ansible.builtin.fail:
+    msg: >-
+      Compose project source {{ compose_deploy_project.src }} could not be found on the controller.
+  when:
+    - _compose_deploy_project_source_dir | length == 0
+
+- name: "Collect Compose project source state"
+  ansible.builtin.stat:
+    path: "{{ _compose_deploy_project_source_dir }}"
+  register: _compose_deploy_project_source_state
+  delegate_to: localhost
+  become: false
+
+# The role only supports complete project directories as sources.
+- name: "Fail when a Compose project source is not a directory"
+  ansible.builtin.fail:
+    msg: >-
+      Compose project source {{ compose_deploy_project.src }} resolves to
+      {{ _compose_deploy_project_source_dir }} but is not a directory.
+  when:
+    - not _compose_deploy_project_source_state.stat.isdir
+
+- name: "Collect local Compose project directories"
+  ansible.builtin.find:
+    paths:
+      - "{{ _compose_deploy_project_source_dir }}"
+    recurse: true
+    hidden: true
+    follow: true
+    file_type: directory
+  register: _compose_deploy_project_directories
+  delegate_to: localhost
+  become: false
+
+- name: "Collect local Compose project files"
+  ansible.builtin.find:
+    paths:
+      - "{{ _compose_deploy_project_source_dir }}"
+    recurse: true
+    hidden: true
+    follow: true
+    file_type: file
+    excludes:
+      - "*.j2"
+  register: _compose_deploy_project_files
+  delegate_to: localhost
+  become: false
+
+- name: "Collect local Compose project templates"
+  ansible.builtin.find:
+    paths:
+      - "{{ _compose_deploy_project_source_dir }}"
+    recurse: true
+    hidden: true
+    follow: true
+    file_type: file
+    patterns:
+      - "*.j2"
+  register: _compose_deploy_project_templates
+  delegate_to: localhost
+  become: false
+
+# Prepare nested paths before copying files into the project tree.
+- name: "Run Compose project path tasks"
+  ansible.builtin.include_tasks:
+    file: project_paths.yml
+    apply:
+      tags:
+        - role-compose-deploy-project-sync
+  tags:
+    - role-compose-deploy-project-sync
+
+- name: "Copy Compose project files"
+  ansible.builtin.copy:
+    src: "{{ compose_deploy_project_file.path }}"
+    dest: "{{ _compose_deploy_project_remote_path }}"
+    mode: "{{ compose_deploy_project.mode | default(omit) }}"
+  vars:
+    _compose_deploy_project_relative_path: >-
+      {{ compose_deploy_project_file.path | regex_replace('^' ~ (_compose_deploy_project_source_dir | regex_escape) ~ '/?', '') }}
+    _compose_deploy_project_remote_path: >-
+      {{ _compose_deploy_project_dest_dir }}/{{ _compose_deploy_project_relative_path }}
+  loop: "{{ _compose_deploy_project_files.files | sort(attribute='path') }}"
+  loop_control:
+    loop_var: compose_deploy_project_file
+    label: "{{ _compose_deploy_project_relative_path }}"
+
+- name: "Render Compose project templates"
+  ansible.builtin.template:
+    src: "{{ compose_deploy_project_template.path }}"
+    dest: "{{ _compose_deploy_project_remote_path | regex_replace('\\.j2$', '') }}"
+    mode: "{{ compose_deploy_project.mode | default(omit) }}"
+  vars:
+    _compose_deploy_project_relative_path: >-
+      {{ compose_deploy_project_template.path | regex_replace('^' ~ (_compose_deploy_project_source_dir | regex_escape) ~ '/?', '') }}
+    _compose_deploy_project_remote_path: >-
+      {{ _compose_deploy_project_dest_dir }}/{{ _compose_deploy_project_relative_path }}
+  loop: "{{ _compose_deploy_project_templates.files | sort(attribute='path') }}"
+  loop_control:
+    loop_var: compose_deploy_project_template
+    label: "{{ _compose_deploy_project_relative_path }}"

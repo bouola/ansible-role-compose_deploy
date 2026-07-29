@@ -1,0 +1,3 @@
+---
+compose_deploy_volumes_dir: [] # Bind-mount directories to create when missing.
+compose_deploy_projects: [] # Compose project directories to synchronize and deploy.

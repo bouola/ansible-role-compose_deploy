@@ -1,0 +1,18 @@
+---
+# Process each prepared project tree independently during content synchronization.
+- name: "Synchronize Compose project content"
+  ansible.builtin.include_tasks:
+    file: project.yml
+    apply:
+      tags:
+        - role-compose-deploy-project-sync
+  loop: "{{ compose_deploy_projects }}"
+  loop_control:
+    loop_var: compose_deploy_project
+    label: "{{ compose_deploy_project.dest }}"
+  vars:
+    _compose_deploy_project_source_dir: >-
+      {{ lookup('ansible.builtin.first_found', {'files': [compose_deploy_project.src]}, errors='ignore') | default('', true) }}
+    _compose_deploy_project_dest_dir: "{{ compose_deploy_project.dest | regex_replace('/?$', '') }}"
+  tags:
+    - role-compose-deploy-project-sync

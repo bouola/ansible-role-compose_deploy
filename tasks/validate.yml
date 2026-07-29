@@ -1,0 +1,32 @@
+---
+- name: "Validate volume directory definitions"
+  ansible.builtin.assert:
+    that:
+      - compose_deploy_volume_dir.path is string
+      - compose_deploy_volume_dir.path | length > 0
+      - compose_deploy_volume_dir.mode is not defined or compose_deploy_volume_dir.mode is string
+    fail_msg: >-
+      Each compose_deploy_volumes_dir item must define a non-empty path.
+      mode is optional and must be a string when set.
+  loop: "{{ compose_deploy_volumes_dir }}"
+  loop_control:
+    loop_var: compose_deploy_volume_dir
+    label: "{{ compose_deploy_volume_dir.path | default('<missing path>') }}"
+
+- name: "Validate Compose project definitions"
+  ansible.builtin.assert:
+    that:
+      - compose_deploy_project_definition.src is string
+      - compose_deploy_project_definition.src | length > 0
+      - compose_deploy_project_definition.dest is string
+      - compose_deploy_project_definition.dest | length > 0
+      - compose_deploy_project_definition.name is not defined or compose_deploy_project_definition.name is string
+      - compose_deploy_project_definition.mode is not defined or compose_deploy_project_definition.mode is string
+      - compose_deploy_project_definition.directory_mode is not defined or compose_deploy_project_definition.directory_mode is string
+    fail_msg: >-
+      Each compose_deploy_projects item must define non-empty src and dest values.
+      name, mode, and directory_mode are optional and must be strings when set.
+  loop: "{{ compose_deploy_projects }}"
+  loop_control:
+    loop_var: compose_deploy_project_definition
+    label: "{{ compose_deploy_project_definition.dest | default('<missing dest>') }}"
