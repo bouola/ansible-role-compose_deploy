@@ -20,9 +20,11 @@
       Compose project path {{ _compose_deploy_project_remote_path }} exists but is not a directory.
       Update compose_deploy_projects or remove the conflicting path.
   vars:
+    _compose_deploy_project_relative_path: >-
+      {{ compose_deploy_project_subdirectory_state.compose_deploy_project_directory.path
+         | regex_replace('^' ~ (_compose_deploy_project_source_dir | regex_escape) ~ '/?', '') }}
     _compose_deploy_project_remote_path: >-
-      {{ compose_deploy_project_subdirectory_state.stat.path
-         | default(compose_deploy_project_subdirectory_state.invocation.module_args.path) }}
+      {{ _compose_deploy_project_dest_dir }}/{{ _compose_deploy_project_relative_path }}
   loop: "{{ _compose_deploy_project_subdirectories_state.results }}"
   loop_control:
     loop_var: compose_deploy_project_subdirectory_state
@@ -38,9 +40,11 @@
     state: directory
     mode: "{{ compose_deploy_project.directory_mode | default('0755') }}"
   vars:
+    _compose_deploy_project_relative_path: >-
+      {{ compose_deploy_project_subdirectory_state.compose_deploy_project_directory.path
+         | regex_replace('^' ~ (_compose_deploy_project_source_dir | regex_escape) ~ '/?', '') }}
     _compose_deploy_project_remote_path: >-
-      {{ compose_deploy_project_subdirectory_state.stat.path
-         | default(compose_deploy_project_subdirectory_state.invocation.module_args.path) }}
+      {{ _compose_deploy_project_dest_dir }}/{{ _compose_deploy_project_relative_path }}
   loop: "{{ _compose_deploy_project_subdirectories_state.results }}"
   loop_control:
     loop_var: compose_deploy_project_subdirectory_state
@@ -56,9 +60,11 @@
       {{ compose_deploy_project_subdirectory_state.stat.mode }}. Requested mode is
       {{ compose_deploy_project.directory_mode | default('0755') }}. Permissions are left unchanged.
   vars:
+    _compose_deploy_project_relative_path: >-
+      {{ compose_deploy_project_subdirectory_state.compose_deploy_project_directory.path
+         | regex_replace('^' ~ (_compose_deploy_project_source_dir | regex_escape) ~ '/?', '') }}
     _compose_deploy_project_remote_path: >-
-      {{ compose_deploy_project_subdirectory_state.stat.path
-         | default(compose_deploy_project_subdirectory_state.invocation.module_args.path) }}
+      {{ _compose_deploy_project_dest_dir }}/{{ _compose_deploy_project_relative_path }}
   loop: "{{ _compose_deploy_project_subdirectories_state.results }}"
   loop_control:
     loop_var: compose_deploy_project_subdirectory_state
@@ -66,4 +72,4 @@
   when:
     - compose_deploy_project_subdirectory_state.stat.exists
     - compose_deploy_project_subdirectory_state.stat.isdir
-    - (compose_deploy_project_subdirectory_state.stat.mode | string | int(base=8)) != (compose_deploy_project.directory_mode | default('0755') | string | int(base=8))
+    - (compose_deploy_project_subdirectory_state.stat.mode | regex_replace('^0*', '')) != (compose_deploy_project.directory_mode | default('0755') | regex_replace('^0*', ''))

@@ -50,4 +50,4 @@
   when:
     - compose_deploy_volume_directory_state.stat.exists
     - compose_deploy_volume_directory_state.stat.isdir
-    - (compose_deploy_volume_directory_state.stat.mode | string | int(base=8)) != (compose_deploy_volume_directory_state.compose_deploy_volume_dir.mode | default('0755') | string | int(base=8))
+    - (compose_deploy_volume_directory_state.stat.mode | regex_replace('^0*', '')) != (compose_deploy_volume_directory_state.compose_deploy_volume_dir.mode | default('0755') | regex_replace('^0*', ''))
