@@ -3,6 +3,9 @@ exclude_paths:
   - molecule/
   - .pre-commit-config.yaml
   - .github/
+  - .venv/
+  - .git/
+  - .ansible-lint
 
 use_default_rules: true
 
