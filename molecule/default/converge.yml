@@ -1,0 +1,20 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+  become: false
+  vars:
+    compose_deploy_nginx_server_name: flask.test.local
+
+    # svc compose volumes dir to create
+    compose_deploy_volumes_dir:
+      - path: /app/db
+        mode: "0755"
+
+    compose_deploy_projects:
+      - name: flask
+        src: files/flask/
+        dest: /app/flask
+
+  roles:
+    - role: bouola.compose_deploy

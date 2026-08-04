@@ -1,0 +1,53 @@
+---
+- name: "Collect volume directory state"
+  ansible.builtin.stat:
+    path: "{{ compose_deploy_volume_dir.path }}"
+  loop: "{{ compose_deploy_volumes_dir }}"
+  loop_control:
+    loop_var: compose_deploy_volume_dir
+    label: "{{ compose_deploy_volume_dir.path }}"
+  register: _compose_deploy_volume_directories_state
+
+# A non-directory volume path would make directory creation unsafe.
+- name: "Fail when a volume path exists and is not a directory"
+  ansible.builtin.fail:
+    msg: >-
+      Volume path {{ compose_deploy_volume_directory_state.compose_deploy_volume_dir.path }} exists
+      but is not a directory. Update compose_deploy_volumes_dir or remove the conflicting path.
+  loop: "{{ _compose_deploy_volume_directories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_volume_directory_state
+    label: "{{ compose_deploy_volume_directory_state.compose_deploy_volume_dir.path }}"
+  when:
+    - compose_deploy_volume_directory_state.stat.exists
+    - not compose_deploy_volume_directory_state.stat.isdir
+
+# Create only paths that do not already exist to preserve Docker-managed permissions.
+- name: "Create missing volume directories"
+  ansible.builtin.file:
+    path: "{{ compose_deploy_volume_directory_state.compose_deploy_volume_dir.path }}"
+    state: directory
+    mode: "{{ compose_deploy_volume_directory_state.compose_deploy_volume_dir.mode | default('0755') }}"
+  loop: "{{ _compose_deploy_volume_directories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_volume_directory_state
+    label: "{{ compose_deploy_volume_directory_state.compose_deploy_volume_dir.path }}"
+  when:
+    - not compose_deploy_volume_directory_state.stat.exists
+
+# Existing directories retain their current permissions by design.
+- name: "Report existing volume directories with a different mode"
+  ansible.builtin.debug:
+    msg: >-
+      Volume path {{ compose_deploy_volume_directory_state.compose_deploy_volume_dir.path }} already exists
+      with mode {{ compose_deploy_volume_directory_state.stat.mode }}. Requested mode is
+      {{ compose_deploy_volume_directory_state.compose_deploy_volume_dir.mode | default('0755') }}.
+      Permissions are left unchanged.
+  loop: "{{ _compose_deploy_volume_directories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_volume_directory_state
+    label: "{{ compose_deploy_volume_directory_state.compose_deploy_volume_dir.path }}"
+  when:
+    - compose_deploy_volume_directory_state.stat.exists
+    - compose_deploy_volume_directory_state.stat.isdir
+    - (compose_deploy_volume_directory_state.stat.mode | regex_replace('^0*', '')) != (compose_deploy_volume_directory_state.compose_deploy_volume_dir.mode | default('0755') | regex_replace('^0*', ''))

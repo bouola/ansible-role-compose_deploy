@@ -1,0 +1,60 @@
+---
+# Install packages required by the Docker Compose module.
+- name: "Run prerequisite tasks"
+  ansible.builtin.include_tasks:
+    file: prerequisites.yml
+    apply:
+      tags:
+        - role-compose-deploy-prerequisites
+  tags:
+    - role-compose-deploy-prerequisites
+
+# Validate public role inputs before making changes on the managed host.
+- name: "Run validation tasks"
+  ansible.builtin.include_tasks:
+    file: validate.yml
+    apply:
+      tags:
+        - role-compose-deploy-validate
+  tags:
+    - role-compose-deploy-validate
+
+# Prepare bind-mount directories without changing existing permissions.
+- name: "Run volume directory tasks"
+  ansible.builtin.include_tasks:
+    file: volumes.yml
+    apply:
+      tags:
+        - role-compose-deploy-volumes
+  tags:
+    - role-compose-deploy-volumes
+
+# Prepare project root directories before their content is synchronized.
+- name: "Run project directory tasks"
+  ansible.builtin.include_tasks:
+    file: project_directories.yml
+    apply:
+      tags:
+        - role-compose-deploy-project-directories
+  tags:
+    - role-compose-deploy-project-directories
+
+# Synchronize project files and render project templates.
+- name: "Run project synchronization tasks"
+  ansible.builtin.include_tasks:
+    file: sync.yml
+    apply:
+      tags:
+        - role-compose-deploy-project-sync
+  tags:
+    - role-compose-deploy-project-sync
+
+# Reconcile each Compose project after its content is available remotely.
+- name: "Run Compose deployment tasks"
+  ansible.builtin.include_tasks:
+    file: deploy.yml
+    apply:
+      tags:
+        - role-compose-deploy-deploy
+  tags:
+    - role-compose-deploy-deploy

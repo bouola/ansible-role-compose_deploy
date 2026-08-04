@@ -1,0 +1,20 @@
+galaxy_info:
+  role_name: "compose_deploy"
+  namespace: "bouola"
+  description: "Deploy Docker Compose projects from prepared directories"
+  author: "bouola"
+  company: "Bouola IT"
+
+  license: "MPL2"
+
+  min_ansible_version: "2.17"
+
+  galaxy_tags: ['bouola', 'compose', 'docker']
+
+  platforms:
+    - name: Debian
+      versions:
+        - all
+    - name: Ubuntu
+      versions:
+        - all

@@ -1,0 +1,72 @@
+---
+- name: "Verify existing Compose paths"
+  hosts: all
+  gather_facts: false
+  vars:
+    compose_deploy_nginx_server_name: existing-paths.test.local
+    compose_project_path: /app/flask/docker-compose.yml
+    compose_project_directory: /app/flask
+    nginx_config_path: /app/flask/nginx/nginx.conf
+    db_volume_path: /app/db
+  tasks:
+    - name: "Collect existing Compose path state"
+      ansible.builtin.stat:
+        path: "{{ compose_deploy_existing_path }}"
+      loop:
+        - "{{ compose_project_directory }}"
+        - "{{ db_volume_path }}"
+      loop_control:
+        loop_var: compose_deploy_existing_path
+        label: "{{ compose_deploy_existing_path }}"
+      register: _verify_existing_paths
+
+    - name: "Collect deployed file state"
+      ansible.builtin.stat:
+        path: "{{ compose_deploy_deployed_path }}"
+      loop:
+        - "{{ compose_project_path }}"
+        - "{{ nginx_config_path }}"
+      loop_control:
+        loop_var: compose_deploy_deployed_path
+        label: "{{ compose_deploy_deployed_path }}"
+      register: _verify_deployed_files
+
+    - name: "Read rendered nginx configuration"
+      ansible.builtin.slurp:
+        path: "{{ nginx_config_path }}"
+      register: _verify_nginx_config_content
+
+    - name: "Assert existing paths preserve their permissions"
+      ansible.builtin.assert:
+        that:
+          - _verify_existing_paths.results | map(attribute='stat.exists') | list | min
+          - _verify_existing_paths.results | map(attribute='stat.isdir') | list | min
+          - _verify_existing_paths.results | map(attribute='stat.mode') | list == ['0700', '0700']
+        fail_msg: >-
+          Existing configured directories must remain directories with their original 0700 mode.
+
+    - name: "Assert project content is deployed"
+      ansible.builtin.assert:
+        that:
+          - _verify_deployed_files.results | map(attribute='stat.exists') | list | min
+          - _verify_deployed_files.results | map(attribute='stat.isreg') | list | min
+          - "'server_name ' ~ compose_deploy_nginx_server_name ~ ';' in (_verify_nginx_config_content.content | b64decode)"
+        fail_msg: >-
+          The Compose project and rendered nginx configuration must be deployed.
+
+    - name: "Wait for nginx to listen on port 80"
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 80
+        timeout: 60
+
+    - name: "Check the HTTP endpoint"
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ compose_deploy_nginx_server_name }}"
+        status_code: 200
+      register: _verify_http_endpoint
+      retries: 10
+      delay: 3
+      until: _verify_http_endpoint.status == 200

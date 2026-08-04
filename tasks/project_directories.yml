@@ -1,0 +1,53 @@
+---
+- name: "Collect Compose project directory state"
+  ansible.builtin.stat:
+    path: "{{ compose_deploy_project_definition.dest }}"
+  loop: "{{ compose_deploy_projects }}"
+  loop_control:
+    loop_var: compose_deploy_project_definition
+    label: "{{ compose_deploy_project_definition.dest }}"
+  register: _compose_deploy_project_directories_state
+
+# A non-directory destination would make project synchronization unsafe.
+- name: "Fail when a project destination exists and is not a directory"
+  ansible.builtin.fail:
+    msg: >-
+      Project destination {{ compose_deploy_project_directory_state.compose_deploy_project_definition.dest }}
+      exists but is not a directory. Update compose_deploy_projects or remove the conflicting path.
+  loop: "{{ _compose_deploy_project_directories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_project_directory_state
+    label: "{{ compose_deploy_project_directory_state.compose_deploy_project_definition.dest }}"
+  when:
+    - compose_deploy_project_directory_state.stat.exists
+    - not compose_deploy_project_directory_state.stat.isdir
+
+# Create only missing roots so an explicit sync run does not change their mode.
+- name: "Create missing Compose project directories"
+  ansible.builtin.file:
+    path: "{{ compose_deploy_project_directory_state.compose_deploy_project_definition.dest }}"
+    state: directory
+    mode: "{{ compose_deploy_project_directory_state.compose_deploy_project_definition.directory_mode | default('0755') }}"
+  loop: "{{ _compose_deploy_project_directories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_project_directory_state
+    label: "{{ compose_deploy_project_directory_state.compose_deploy_project_definition.dest }}"
+  when:
+    - not compose_deploy_project_directory_state.stat.exists
+
+# Existing project roots retain their current permissions by design.
+- name: "Report existing Compose project directories with a different mode"
+  ansible.builtin.debug:
+    msg: >-
+      Project directory {{ compose_deploy_project_directory_state.compose_deploy_project_definition.dest }}
+      already exists with mode {{ compose_deploy_project_directory_state.stat.mode }}. Requested mode is
+      {{ compose_deploy_project_directory_state.compose_deploy_project_definition.directory_mode | default('0755') }}.
+      Permissions are left unchanged.
+  loop: "{{ _compose_deploy_project_directories_state.results }}"
+  loop_control:
+    loop_var: compose_deploy_project_directory_state
+    label: "{{ compose_deploy_project_directory_state.compose_deploy_project_definition.dest }}"
+  when:
+    - compose_deploy_project_directory_state.stat.exists
+    - compose_deploy_project_directory_state.stat.isdir
+    - (compose_deploy_project_directory_state.stat.mode | regex_replace('^0*', '')) != (compose_deploy_project_directory_state.compose_deploy_project_definition.directory_mode | default('0755') | regex_replace('^0*', ''))
